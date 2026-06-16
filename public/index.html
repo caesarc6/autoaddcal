@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Auto Add Cal — Work schedule to Google Calendar</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/bento.css" />
+    <link rel="stylesheet" href="/assets/auto-sync.css" />
+  </head>
+  <body>
+    <nav id="navbar" class="navbar hidden" aria-label="Main">
+      <a class="navbar-brand" href="/">Auto Add Cal</a>
+      <button id="logout-btn" class="btn secondary navbar-logout" type="button">
+        Log out
+      </button>
+    </nav>
+
+    <main class="container">
+      <header class="page-header">
+        <h1>Auto Add Cal</h1>
+        <p class="subtitle">Sync your work schedule to Google Calendar.</p>
+      </header>
+
+      <section id="setup" class="bento-grid bento-grid--setup">
+        <article class="bento-item bento-item--hero">
+          <div class="bento-item__header">
+            <h2 class="bento-item__title">Get started</h2>
+            <p class="bento-item__desc">
+              Sign in with Google, then connect your work schedule to start syncing.
+            </p>
+          </div>
+          <div class="bento-item__body">
+            <a id="google-login-btn" class="btn primary" href="/auth/google/login">
+              Sign in with Google
+            </a>
+            <p id="setup-message" class="message"></p>
+          </div>
+        </article>
+      </section>
+
+      <section id="dashboard" class="dashboard hidden">
+        <article class="panel panel--overview">
+          <div class="overview-profile">
+            <p class="overview-eyebrow">Your profile</p>
+            <h2 class="overview-name" id="overview-name">—</h2>
+            <p class="overview-location" id="overview-location"></p>
+            <p class="overview-account" id="overview-account"></p>
+          </div>
+          <div class="status-grid status-grid--single">
+            <div class="status-item">
+              <span class="label">Work schedule</span>
+              <span id="wps-status" class="badge">Not connected</span>
+            </div>
+          </div>
+          <p id="overview-meta" class="overview-meta"></p>
+        </article>
+
+        <article class="panel panel--actions">
+          <div id="wps-block" class="action-block">
+            <form id="wps-form" class="form form--inline">
+              <label>
+                Employee ID
+                <input
+                  type="text"
+                  id="employee-number"
+                  required
+                  autocomplete="username"
+                  placeholder="Employee number"
+                />
+              </label>
+              <label>
+                Password
+                <input
+                  type="password"
+                  id="wps-password"
+                  required
+                  autocomplete="current-password"
+                />
+              </label>
+              <button type="submit" class="btn primary" id="wps-connect-btn">Sign in</button>
+            </form>
+            <p id="wps-message" class="message"></p>
+          </div>
+
+          <div id="calendar-block" class="action-block hidden">
+            <div id="calendar-picker" class="calendar-picker">
+              <label>
+                Calendar
+                <select id="calendar-select"></select>
+              </label>
+              <button id="calendar-save-btn" class="btn secondary" type="button">
+                Save calendar
+              </button>
+              <div id="color-picker" class="color-picker">
+                <span class="label">Event color</span>
+                <div id="color-options" class="color-options"></div>
+                <button id="color-save-btn" class="btn secondary" type="button">Save color</button>
+              </div>
+              <p id="calendar-message" class="message"></p>
+            </div>
+          </div>
+
+          <div class="action-block action-block--sync">
+            <div id="auto-sync-root" class="auto-sync-root"></div>
+            <button id="sync-btn" class="btn primary" disabled>Sync now</button>
+            <p id="sync-status" class="sync-status"></p>
+          </div>
+        </article>
+      </section>
+
+      <footer>
+        Made by <a href="https://www.linkedin.com/in/caesar001/">🗽 caesar c.</a>
+      </footer>
+    </main>
+    <script type="module" src="/assets/auto-sync.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>
