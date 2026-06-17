@@ -7,10 +7,12 @@
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
     "build": "tsc && npm run build:client",
-    "build:client": "npm run build --prefix client",
-    "postinstall": "npm ci --prefix client",
+    "build:client": "npm run build -w client",
     "sync": "tsx src/cli/sync.ts"
   },
+  "workspaces": [
+    "client"
+  ],
   "engines": {
     "node": ">=20"
   },
