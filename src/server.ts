@@ -31,32 +31,49 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true });
 });
 
-for (const cronExpr of config.thursdaySyncCrons) {
-  if (!cron.validate(cronExpr)) {
-    console.warn(`Invalid THURSDAY_SYNC_CRONS entry skipped: ${cronExpr}`);
-    continue;
-  }
+if (!process.env.VERCEL) {
+  for (const cronExpr of config.thursdaySyncCrons) {
+    if (!cron.validate(cronExpr)) {
+      console.warn(`Invalid THURSDAY_SYNC_CRONS entry skipped: ${cronExpr}`);
+      continue;
+    }
 
-  cron.schedule(
-    cronExpr,
-    async () => {
-      const users = getUsersReadyToSync();
-      for (const user of users) {
-        try {
-          await scheduledThursdaySyncUserSchedule(user.id as string);
-        } catch (error) {
-          console.error(`Thursday sync failed for ${user.id}:`, error);
+    cron.schedule(
+      cronExpr,
+      async () => {
+        const users = getUsersReadyToSync();
+        for (const user of users) {
+          try {
+            await scheduledThursdaySyncUserSchedule(user.id as string);
+          } catch (error) {
+            console.error(`Thursday sync failed for ${user.id}:`, error);
+          }
         }
-      }
-    },
-    { timezone: config.syncTimezone },
-  );
-  console.log(`Thursday sync scheduled: ${cronExpr} (${config.syncTimezone})`);
+      },
+      { timezone: config.syncTimezone },
+    );
+    console.log(`Thursday sync scheduled: ${cronExpr} (${config.syncTimezone})`);
+  }
 }
 
-app.listen(config.port, () => {
-  console.log(`autaddcal running at ${config.baseUrl}`);
+app.get("*", (req, res, next) => {
+  if (req.path.startsWith("/api") || req.path.startsWith("/auth")) {
+    next();
+    return;
+  }
+
+  res.sendFile(join(publicDir, "index.html"), (error) => {
+    if (error) next(error);
+  });
 });
+
+if (!process.env.VERCEL) {
+  app.listen(config.port, () => {
+    console.log(`autaddcal running at ${config.baseUrl}`);
+  });
+}
+
+export default app;
 
 process.on("unhandledRejection", (reason) => {
   console.error("Unhandled rejection:", reason);
