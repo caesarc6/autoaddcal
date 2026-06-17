@@ -1,4 +1,4 @@
-import { chromium, type Cookie, type Page } from "playwright";
+import type { Cookie, Page } from "playwright";
 import { config } from "../config.js";
 import type {
   WpsApiResponse,
@@ -681,6 +681,7 @@ export async function loginWithCredentials(
   employeeNumber: string,
   password: string,
 ): Promise<WpsSession> {
+  const { chromium } = await import("playwright");
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ userAgent: WPS_USER_AGENT });
   const page = await context.newPage();

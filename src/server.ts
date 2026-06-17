@@ -13,7 +13,9 @@ import { getUsersReadyToSync } from "./db/index.js";
 import { scheduledThursdaySyncUserSchedule } from "./services/sync-service.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const publicDir = join(__dirname, "../public");
+const publicDir = process.env.VERCEL
+  ? join(process.cwd(), "public")
+  : join(__dirname, "../public");
 
 const app = express();
 

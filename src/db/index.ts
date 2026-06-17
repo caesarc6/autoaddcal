@@ -1,11 +1,14 @@
 import { mkdirSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import { createUserId } from "../utils/crypto.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const dbPath = join(__dirname, "../../data/autaddcal.db");
+const dbPath = process.env.VERCEL
+  ? join(tmpdir(), "autaddcal.db")
+  : join(__dirname, "../../data/autaddcal.db");
 
 mkdirSync(dirname(dbPath), { recursive: true });
 
