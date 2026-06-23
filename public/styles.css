@@ -230,6 +230,42 @@ a.btn.primary {
   max-width: 28rem;
 }
 
+.form-options {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.checkbox-label {
+  display: flex !important;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--text);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: auto;
+  min-height: auto;
+  margin: 0;
+  accent-color: var(--accent, #6ea8fe);
+}
+
+.form-hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.profile-settings {
+  display: grid;
+  gap: var(--space-md);
+  padding-bottom: var(--space-lg);
+  margin-bottom: var(--space-lg);
+  border-bottom: 1px solid var(--border);
+}
+
 #google-block .calendar-picker {
   margin-top: var(--space-md);
   padding-top: var(--space-md);

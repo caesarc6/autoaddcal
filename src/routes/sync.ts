@@ -1,12 +1,13 @@
 import { Router } from "express";
 import { getUsersReadyToSync } from "../db/index.js";
+import { requireAuth, requireCronSecret } from "../middleware/auth.js";
 import { previewUserSchedule, syncUserSchedule } from "../services/sync-service.js";
 
 export const syncRouter = Router();
 
-syncRouter.get("/:userId/preview", async (req, res) => {
+syncRouter.get("/preview", requireAuth, async (req, res) => {
   try {
-    const preview = await previewUserSchedule(req.params.userId);
+    const preview = await previewUserSchedule(req.userId!);
     res.json({ ok: true, preview });
   } catch (error) {
     res.status(500).json({
@@ -16,9 +17,9 @@ syncRouter.get("/:userId/preview", async (req, res) => {
   }
 });
 
-syncRouter.post("/:userId", async (req, res) => {
+syncRouter.post("/", requireAuth, async (req, res) => {
   try {
-    const result = await syncUserSchedule(req.params.userId);
+    const result = await syncUserSchedule(req.userId!);
     res.json({ ok: true, result });
   } catch (error) {
     res.status(500).json({
@@ -28,18 +29,18 @@ syncRouter.post("/:userId", async (req, res) => {
   }
 });
 
-syncRouter.post("/", async (_req, res) => {
-  const users = getUsersReadyToSync();
+/** Sync all connected users — cron / ops only */
+syncRouter.post("/all", requireCronSecret, async (_req, res) => {
+  const users = await getUsersReadyToSync();
   const results: Array<{ userId: string; ok: boolean; error?: string }> = [];
 
   for (const user of users) {
-    const userId = user.id as string;
     try {
-      await syncUserSchedule(userId);
-      results.push({ userId, ok: true });
+      await syncUserSchedule(user.id);
+      results.push({ userId: user.id, ok: true });
     } catch (error) {
       results.push({
-        userId,
+        userId: user.id,
         ok: false,
         error: error instanceof Error ? error.message : "Sync failed",
       });

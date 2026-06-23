@@ -78,24 +78,60 @@
                   autocomplete="current-password"
                 />
               </label>
+              <div class="form-options">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="save-employee-id" />
+                  Remember employee ID
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" id="save-password" />
+                  Save password for automatic sync
+                </label>
+                <p class="form-hint">
+                  Preferences are stored with your Google account. Passwords are encrypted.
+                </p>
+              </div>
               <button type="submit" class="btn primary" id="wps-connect-btn">Sign in</button>
             </form>
             <p id="wps-message" class="message"></p>
           </div>
 
           <div id="calendar-block" class="action-block hidden">
+            <div id="profile-settings" class="profile-settings hidden">
+              <p class="label">Profile settings</p>
+              <div class="form-options">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="profile-save-employee-id" />
+                  Remember employee ID
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" id="profile-save-password" />
+                  Save password for automatic sync
+                </label>
+                <label id="profile-password-wrap" class="hidden">
+                  Work password
+                  <input
+                    type="password"
+                    id="profile-password"
+                    autocomplete="new-password"
+                    placeholder="Enter to update saved password"
+                  />
+                </label>
+              </div>
+              <button id="profile-save-btn" class="btn secondary" type="button">
+                Save profile settings
+              </button>
+              <p id="profile-message" class="message"></p>
+            </div>
+
             <div id="calendar-picker" class="calendar-picker">
               <label>
                 Calendar
                 <select id="calendar-select"></select>
               </label>
-              <button id="calendar-save-btn" class="btn secondary" type="button">
-                Save calendar
-              </button>
               <div id="color-picker" class="color-picker">
                 <span class="label">Event color</span>
                 <div id="color-options" class="color-options"></div>
-                <button id="color-save-btn" class="btn secondary" type="button">Save color</button>
               </div>
               <p id="calendar-message" class="message"></p>
             </div>
@@ -110,7 +146,7 @@
       </section>
 
       <footer>
-        Made by <a href="https://www.linkedin.com/in/caesar001/">🗽 caesar c.</a>
+        Made by <a href="https://www.linkedin.com/in/caesar001/">caesar c.🗽</a>
       </footer>
     </main>
     <script type="module" src="/assets/auto-sync.js"></script>

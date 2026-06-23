@@ -1,11 +1,13 @@
 import {
   fetchCalendarMonth,
+  loginWithCredentials,
+  serializeSession,
   sessionFromStored,
   validateSession,
   type WpsSession,
 } from "./wps-client.js";
 import { syncShiftsToGoogle } from "./google-calendar.js";
-import { getUser, updateSyncStatus, updateWeekSyncFingerprint } from "../db/index.js";
+import { getUser, updateSyncStatus, updateWeekSyncFingerprint, updateWpsSession } from "../db/index.js";
 import {
   buildScheduleSyncRange,
   filterShiftsToRange,
@@ -62,32 +64,54 @@ export function shiftFingerprint(shifts: WorkShift[]): string {
     .join("|");
 }
 
+async function refreshWpsSession(user: NonNullable<Awaited<ReturnType<typeof getUser>>>): Promise<WpsSession> {
+  if (!user.save_wps_password || !user.wps_saved_password || !user.wps_employee_number) {
+    throw new Error("Your session expired. Please sign in again.");
+  }
+
+  console.log(`Re-authenticating WPS session for ${user.id} using saved credentials`);
+  const session = await loginWithCredentials(user.wps_employee_number, user.wps_saved_password);
+
+  await updateWpsSession(user.id, {
+    employeeNumber: session.employeeNumber,
+    staffName: session.staffName,
+    storeName: session.storeName,
+    sessionCookies: serializeSession(session),
+  });
+
+  return session;
+}
+
 async function loadWpsSession(userId: string): Promise<WpsSession> {
-  const user = getUser(userId);
+  const user = await getUser(userId);
   if (!user) {
     throw new Error("User not found");
   }
 
-  const wpsCookies = user.wps_session_cookies as string | null;
-  if (!wpsCookies) {
-    throw new Error("Work schedule not connected. Sign in with your employee ID.");
+  const wpsCookies = user.wps_session_cookies;
+  if (wpsCookies) {
+    try {
+      const session = await sessionFromStored(wpsCookies);
+      const valid = await validateSession(session.cookieHeader);
+      if (valid) {
+        return session;
+      }
+    } catch (error) {
+      if (!user.save_wps_password || !user.wps_saved_password) {
+        throw new Error(
+          `Your session expired. Please sign in again. (${error instanceof Error ? error.message : "unknown"})`,
+        );
+      }
+    }
   }
 
-  let session: WpsSession;
   try {
-    session = await sessionFromStored(wpsCookies);
+    return await refreshWpsSession(user);
   } catch (error) {
     throw new Error(
-      `Your session expired. Please sign in again. (${error instanceof Error ? error.message : "unknown"})`,
+      error instanceof Error ? error.message : "Your session expired. Please sign in again.",
     );
   }
-
-  const valid = await validateSession(session.cookieHeader);
-  if (!valid) {
-    throw new Error("Your session expired. Please sign in again.");
-  }
-
-  return session;
 }
 
 async function fetchShiftsFromWps(
@@ -132,20 +156,20 @@ async function pushShiftsToGoogle(
   shifts: WorkShift[],
   weekRange: ReturnType<typeof buildScheduleSyncRange>,
 ): Promise<SyncResult> {
-  const user = getUser(userId);
+  const user = await getUser(userId);
   if (!user) {
     throw new Error("User not found");
   }
 
-  const googleRefresh = user.google_refresh_token as string | null;
-  const googleAccess = user.google_access_token as string | null;
+  const googleRefresh = user.google_refresh_token;
+  const googleAccess = user.google_access_token;
 
   if (!googleRefresh || !googleAccess) {
     throw new Error("Google Calendar not connected");
   }
 
-  const calendarId = (user.google_calendar_id as string | null) ?? "primary";
-  const colorId = (user.google_event_color_id as string | null) ?? "8";
+  const calendarId = user.google_calendar_id ?? "primary";
+  const colorId = user.google_event_color_id ?? "8";
 
   try {
     const result = await syncShiftsToGoogle(
@@ -156,15 +180,15 @@ async function pushShiftsToGoogle(
       calendarId,
       colorId,
     );
-    updateSyncStatus(userId, "success");
-    updateWeekSyncFingerprint(userId, weekRange.from, shiftFingerprint(shifts));
+    await updateSyncStatus(userId, "success");
+    await updateWeekSyncFingerprint(userId, weekRange.from, shiftFingerprint(shifts));
     console.log(
       `Synced ${shifts.length} shifts for ${userId} (${weekRange.label})`,
     );
     return result;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown sync error";
-    updateSyncStatus(userId, "error", message);
+    await updateSyncStatus(userId, "error", message);
     throw error;
   }
 }
@@ -183,7 +207,7 @@ export async function syncUserSchedule(userId: string): Promise<SyncResult> {
 export async function scheduledThursdaySyncUserSchedule(
   userId: string,
 ): Promise<{ synced: boolean; reason: string }> {
-  const user = getUser(userId);
+  const user = await getUser(userId);
   if (!user) {
     return { synced: false, reason: "user not found" };
   }
@@ -191,8 +215,8 @@ export async function scheduledThursdaySyncUserSchedule(
   const session = await loadWpsSession(userId);
   const { shifts, weekRange } = await fetchShiftsFromWps(session);
   const fingerprint = shiftFingerprint(shifts);
-  const lastFrom = user.last_week_sync_from as string | null;
-  const lastFingerprint = user.last_week_sync_fingerprint as string | null;
+  const lastFrom = user.last_week_sync_from;
+  const lastFingerprint = user.last_week_sync_fingerprint;
 
   if (lastFrom === weekRange.from && lastFingerprint === fingerprint) {
     const reason = `schedule unchanged for ${weekRange.label}`;

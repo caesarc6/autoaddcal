@@ -7,7 +7,7 @@ import type {
   WpsStaffInfo,
   WpsStoredSession,
 } from "../types/index.js";
-import { decrypt, encrypt } from "../utils/crypto.js";
+import { decrypt } from "../utils/crypto.js";
 
 export interface WpsSession {
   cookieHeader: string;
@@ -113,11 +113,16 @@ function requireResult<T>(
 }
 
 function serializeStoredSession(session: WpsStoredSession): string {
-  return encrypt(JSON.stringify(session));
+  return JSON.stringify(session);
 }
 
 export function deserializeStoredSession(payload: string): WpsStoredSession {
-  return JSON.parse(decrypt(payload)) as WpsStoredSession;
+  try {
+    return JSON.parse(payload) as WpsStoredSession;
+  } catch {
+    // Legacy rows stored with an extra app-layer encrypt before Supabase migration.
+    return JSON.parse(decrypt(payload)) as WpsStoredSession;
+  }
 }
 
 function staffIdFromCookieHeader(cookieHeader: string): number | null {

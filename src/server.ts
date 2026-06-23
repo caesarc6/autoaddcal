@@ -3,14 +3,17 @@ import cookieParser from "cookie-parser";
 import cron from "node-cron";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { config } from "./config.js";
+import { config, assertSupabaseConfig } from "./config.js";
 import { userRouter } from "./routes/users.js";
 import { googleAuthRouter } from "./routes/google-auth.js";
 import { wpsAuthRouter } from "./routes/wps-auth.js";
 import { googleRouter } from "./routes/google.js";
 import { syncRouter } from "./routes/sync.js";
+import { cronRouter } from "./routes/cron.js";
 import { getUsersReadyToSync } from "./db/index.js";
 import { scheduledThursdaySyncUserSchedule } from "./services/sync-service.js";
+
+assertSupabaseConfig();
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const publicDir = process.env.VERCEL
@@ -28,6 +31,7 @@ app.use("/auth/google", googleAuthRouter);
 app.use("/auth/wps", wpsAuthRouter);
 app.use("/api/sync", syncRouter);
 app.use("/api/google", googleRouter);
+app.use("/api/cron", cronRouter);
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
@@ -43,10 +47,10 @@ if (!process.env.VERCEL) {
     cron.schedule(
       cronExpr,
       async () => {
-        const users = getUsersReadyToSync();
+        const users = await getUsersReadyToSync();
         for (const user of users) {
           try {
-            await scheduledThursdaySyncUserSchedule(user.id as string);
+            await scheduledThursdaySyncUserSchedule(user.id);
           } catch (error) {
             console.error(`Thursday sync failed for ${user.id}:`, error);
           }

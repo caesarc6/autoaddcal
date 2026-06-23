@@ -28,6 +28,11 @@ export const config = {
   baseUrl: optional("BASE_URL", "http://localhost:3000"),
   sessionSecret: optional("SESSION_SECRET", "dev-secret-change-me"),
   encryptionKey: process.env.ENCRYPTION_KEY ?? "",
+  cronSecret: process.env.CRON_SECRET ?? "",
+  supabase: {
+    url: process.env.SUPABASE_URL ?? "",
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
+  },
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID ?? "",
     clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
@@ -57,4 +62,9 @@ export function assertEncryptionKey(): void {
         'Generate with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"',
     );
   }
+}
+
+export function assertSupabaseConfig(): void {
+  required("SUPABASE_URL");
+  required("SUPABASE_SERVICE_ROLE_KEY");
 }

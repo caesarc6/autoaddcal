@@ -175,17 +175,17 @@ export async function syncShiftsToGoogle(
   const toDate = shifts[shifts.length - 1]?.date;
 
   if (fromDate && toDate) {
-    const existingDates = listSyncedDates(userId, fromDate, toDate);
+    const existingDates = await listSyncedDates(userId, fromDate, toDate);
     for (const date of existingDates) {
       if (!incomingDates.has(date)) {
-        const synced = getSyncedEvent(userId, date);
+        const synced = await getSyncedEvent(userId, date);
         if (synced) {
           try {
             await calendar.events.delete({
               calendarId,
               eventId: synced.google_event_id,
             });
-            deleteSyncedEvent(userId, date);
+            await deleteSyncedEvent(userId, date);
             result.deleted++;
           } catch {
             result.skipped++;
@@ -196,7 +196,7 @@ export async function syncShiftsToGoogle(
   }
 
   for (const shift of shifts) {
-    const existing = getSyncedEvent(userId, shift.date);
+    const existing = await getSyncedEvent(userId, shift.date);
     const body = eventBody(shift, eventColorId);
 
     try {
@@ -206,7 +206,7 @@ export async function syncShiftsToGoogle(
           eventId: existing.google_event_id,
           requestBody: body,
         });
-        upsertSyncedEvent(userId, shift.date, existing.google_event_id, shift.segmentCode);
+        await upsertSyncedEvent(userId, shift.date, existing.google_event_id, shift.segmentCode);
         result.updated++;
       } else {
         const created = await calendar.events.insert({
@@ -217,7 +217,7 @@ export async function syncShiftsToGoogle(
           result.skipped++;
           continue;
         }
-        upsertSyncedEvent(userId, shift.date, created.data.id, shift.segmentCode);
+        await upsertSyncedEvent(userId, shift.date, created.data.id, shift.segmentCode);
         result.created++;
       }
     } catch {

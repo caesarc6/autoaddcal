@@ -2,13 +2,11 @@ import { useEffect, useState } from "react";
 import { SwitchDisclosure } from "./components/original/switch-disclosure";
 
 export interface AutoSyncToggleProps {
-  userId: string;
   initialEnabled: boolean;
   disabled?: boolean;
 }
 
 export function AutoSyncToggle({
-  userId,
   initialEnabled,
   disabled = false,
 }: AutoSyncToggleProps) {
@@ -27,8 +25,9 @@ export function AutoSyncToggle({
     setError(null);
 
     try {
-      const res = await fetch(`/api/users/${userId}/auto-sync`, {
+      const res = await fetch("/api/users/me/auto-sync", {
         method: "PUT",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled: next }),
       });

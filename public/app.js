@@ -1,4 +1,4 @@
-const STORAGE_KEY = "autaddcal_user_id";
+const FETCH_OPTS = { credentials: "include" };
 
 const setup = document.getElementById("setup");
 const dashboard = document.getElementById("dashboard");
@@ -8,9 +8,7 @@ const wpsBlock = document.getElementById("wps-block");
 const wpsStatus = document.getElementById("wps-status");
 const calendarBlock = document.getElementById("calendar-block");
 const calendarSelect = document.getElementById("calendar-select");
-const calendarSaveBtn = document.getElementById("calendar-save-btn");
 const colorOptions = document.getElementById("color-options");
-const colorSaveBtn = document.getElementById("color-save-btn");
 const calendarMessage = document.getElementById("calendar-message");
 const syncBtn = document.getElementById("sync-btn");
 const syncStatus = document.getElementById("sync-status");
@@ -21,28 +19,28 @@ const overviewAccount = document.getElementById("overview-account");
 const overviewMeta = document.getElementById("overview-meta");
 const navbar = document.getElementById("navbar");
 const logoutBtn = document.getElementById("logout-btn");
+const profileSettings = document.getElementById("profile-settings");
+const profileSaveEmployeeId = document.getElementById("profile-save-employee-id");
+const profileSavePassword = document.getElementById("profile-save-password");
+const profilePasswordWrap = document.getElementById("profile-password-wrap");
+const profilePassword = document.getElementById("profile-password");
+const profileSaveBtn = document.getElementById("profile-save-btn");
+const profileMessage = document.getElementById("profile-message");
+const saveEmployeeIdLogin = document.getElementById("save-employee-id");
+const savePasswordLogin = document.getElementById("save-password");
+const employeeNumberInput = document.getElementById("employee-number");
 
 let eventColors = [];
 let selectedColorId = "8";
+let calendarSaving = false;
+let colorSaving = false;
+let profileHasSavedPassword = false;
 
-function getUserId() {
-  const params = new URLSearchParams(window.location.search);
-  return params.get("user") || localStorage.getItem(STORAGE_KEY);
-}
-
-function setUserId(id) {
-  localStorage.setItem(STORAGE_KEY, id);
-  const url = new URL(window.location.href);
-  url.searchParams.set("user", id);
-  url.searchParams.delete("google");
-  url.searchParams.delete("message");
-  window.history.replaceState({}, "", url);
-}
-
-function clearUserId() {
-  localStorage.removeItem(STORAGE_KEY);
+function cleanAuthParamsFromUrl() {
   const url = new URL(window.location.href);
   url.searchParams.delete("user");
+  url.searchParams.delete("google");
+  url.searchParams.delete("message");
   window.history.replaceState({}, "", url);
 }
 
@@ -54,9 +52,9 @@ function showSetup(message = "", isError = false) {
   setupMessage.className = isError ? "message error" : "message";
 }
 
-async function fetchUser(id) {
-  const res = await fetch(`/api/users/${id}`);
-  if (!res.ok) throw new Error("User not found");
+async function fetchUser() {
+  const res = await fetch("/api/users/me", FETCH_OPTS);
+  if (!res.ok) throw new Error("Not authenticated");
   return res.json();
 }
 
@@ -75,11 +73,7 @@ async function renderAutoSyncToggle(data) {
   const ready = await waitForAutoSyncMount();
   if (!ready || !window.mountAutoSyncToggle) return;
 
-  const userId = getUserId();
-  if (!userId) return;
-
   window.mountAutoSyncToggle(root, {
-    userId,
     initialEnabled: data.sync.autoSyncEnabled,
     disabled: !(data.wps.connected && data.google.connected),
   });
@@ -104,6 +98,13 @@ function renderOverviewMeta(data) {
     lines.push(`Syncs to ${data.google.calendarName} · ${colorName} events`);
   }
 
+  if (data.profile?.saveEmployeeId) {
+    lines.push("Employee ID saved to your profile");
+  }
+  if (data.profile?.savePassword) {
+    lines.push("Password saved for automatic sync");
+  }
+
   if (data.sync.lastSyncAt) {
     const status =
       data.sync.lastSyncStatus === "success" ? "Successful" : data.sync.lastSyncStatus;
@@ -117,9 +118,30 @@ function renderOverviewMeta(data) {
   overviewMeta.classList.toggle("hidden", lines.length === 0);
 }
 
+function renderProfileSettings(data) {
+  const profile = data.profile ?? {};
+  profileHasSavedPassword = Boolean(profile.hasSavedPassword);
+  profileSaveEmployeeId.checked = Boolean(profile.saveEmployeeId);
+  profileSavePassword.checked = Boolean(profile.savePassword);
+  profilePassword.value = "";
+  profilePasswordWrap.classList.toggle("hidden", !profileSavePassword.checked);
+  profileMessage.textContent = "";
+  profileSettings.classList.toggle("hidden", !data.google.connected);
+}
+
+function renderLoginForm(data) {
+  const profile = data.profile ?? {};
+  saveEmployeeIdLogin.checked = Boolean(profile.saveEmployeeId);
+  savePasswordLogin.checked = Boolean(profile.savePassword);
+
+  const savedId = profile.savedEmployeeNumber || data.wps?.employeeNumber || "";
+  if (savedId && !employeeNumberInput.value) {
+    employeeNumberInput.value = savedId;
+  }
+}
+
 function renderUser(data) {
   if (!data.google.connected) {
-    clearUserId();
     showSetup("Your Google session expired. Sign in again.");
     return;
   }
@@ -150,9 +172,11 @@ function renderUser(data) {
     overviewName.textContent = "Connect your schedule";
     overviewLocation.textContent = "Sign in below with your employee ID.";
     overviewLocation.classList.remove("hidden");
+    renderLoginForm(data);
   }
 
   calendarBlock.classList.remove("hidden");
+  renderProfileSettings(data);
   loadCalendarPicker(data.google);
 
   syncBtn.disabled = !(data.wps.connected && data.google.connected);
@@ -162,7 +186,7 @@ function renderUser(data) {
 
 async function loadEventColors() {
   if (eventColors.length) return eventColors;
-  const res = await fetch("/api/google/event-colors");
+  const res = await fetch("/api/google/event-colors", FETCH_OPTS);
   const data = await res.json();
   eventColors = data.colors ?? [];
   return eventColors;
@@ -178,10 +202,74 @@ function renderColorOptions(selectedId = "8") {
     .join("");
 }
 
-async function loadCalendarPicker(google) {
-  const userId = getUserId();
-  if (!userId) return;
+async function saveCalendarSelection() {
+  if (calendarSaving) return;
+  const option = calendarSelect.selectedOptions[0];
+  if (!option) return;
 
+  calendarSaving = true;
+  calendarMessage.textContent = "Saving calendar…";
+  calendarMessage.className = "message";
+
+  try {
+    const res = await fetch("/api/google/calendar", {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        calendarId: option.value,
+        calendarName: option.dataset.name || option.textContent,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to save calendar");
+
+    calendarMessage.textContent = `Using ${data.calendarName}`;
+    calendarMessage.className = "message success";
+
+    const user = await fetchUser();
+    renderOverviewMeta(user);
+  } catch (error) {
+    calendarMessage.textContent =
+      error instanceof Error ? error.message : "Failed to save calendar";
+    calendarMessage.className = "message error";
+  } finally {
+    calendarSaving = false;
+  }
+}
+
+async function saveColorSelection(colorId) {
+  if (colorSaving) return;
+
+  colorSaving = true;
+  calendarMessage.textContent = "Saving color…";
+  calendarMessage.className = "message";
+
+  try {
+    const res = await fetch("/api/google/color", {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ colorId }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to save color");
+
+    calendarMessage.textContent = `Color set to ${data.colorName}`;
+    calendarMessage.className = "message success";
+
+    const user = await fetchUser();
+    renderOverviewMeta(user);
+  } catch (error) {
+    calendarMessage.textContent =
+      error instanceof Error ? error.message : "Failed to save color";
+    calendarMessage.className = "message error";
+  } finally {
+    colorSaving = false;
+  }
+}
+
+async function loadCalendarPicker(google) {
   calendarMessage.textContent = "Loading calendars…";
   calendarMessage.className = "message";
 
@@ -189,7 +277,7 @@ async function loadCalendarPicker(google) {
     await loadEventColors();
     renderColorOptions(google.eventColorId || "8");
 
-    const res = await fetch(`/api/google/${userId}/calendars`);
+    const res = await fetch("/api/google/calendars", FETCH_OPTS);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Failed to load calendars");
 
@@ -225,33 +313,25 @@ async function init() {
   const googleError = params.get("google") === "error";
   const errorMessage = params.get("message");
 
+  cleanAuthParamsFromUrl();
+
   if (googleError && errorMessage) {
     showSetup(decodeURIComponent(errorMessage), true);
     return;
   }
 
-  const userId = getUserId();
-  if (!userId) {
-    showSetup();
-    return;
-  }
-
   try {
-    const data = await fetchUser(userId);
-    setUserId(userId);
+    const data = await fetchUser();
     renderUser(data);
   } catch {
-    clearUserId();
     showSetup();
   }
 }
 
 wpsForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const userId = getUserId();
-  if (!userId) return;
 
-  const employeeNumber = document.getElementById("employee-number").value.trim();
+  const employeeNumber = employeeNumberInput.value.trim();
   const password = document.getElementById("wps-password").value;
   const btn = document.getElementById("wps-connect-btn");
 
@@ -260,10 +340,16 @@ wpsForm.addEventListener("submit", async (event) => {
   wpsMessage.className = "message";
 
   try {
-    const res = await fetch(`/auth/wps/login/${userId}`, {
+    const res = await fetch("/auth/wps/login", {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ employeeNumber, password }),
+      body: JSON.stringify({
+        employeeNumber,
+        password,
+        saveEmployeeId: saveEmployeeIdLogin.checked,
+        savePassword: savePasswordLogin.checked,
+      }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Sign-in failed");
@@ -271,7 +357,7 @@ wpsForm.addEventListener("submit", async (event) => {
     wpsMessage.textContent = "";
     document.getElementById("wps-password").value = "";
 
-    const user = await fetchUser(userId);
+    const user = await fetchUser();
     renderUser(user);
   } catch (error) {
     wpsMessage.textContent = error instanceof Error ? error.message : "Sign-in failed";
@@ -281,94 +367,79 @@ wpsForm.addEventListener("submit", async (event) => {
   }
 });
 
-calendarSaveBtn.addEventListener("click", async () => {
-  const userId = getUserId();
-  if (!userId) return;
-
-  const option = calendarSelect.selectedOptions[0];
-  if (!option) return;
-
-  calendarSaveBtn.disabled = true;
-  calendarMessage.textContent = "Saving…";
-  calendarMessage.className = "message";
-
-  try {
-    const res = await fetch(`/api/google/${userId}/calendar`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        calendarId: option.value,
-        calendarName: option.dataset.name || option.textContent,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to save calendar");
-
-    calendarMessage.textContent = `Using ${data.calendarName}`;
-    calendarMessage.className = "message success";
-
-    const user = await fetchUser(userId);
-    renderUser(user);
-  } catch (error) {
-    calendarMessage.textContent =
-      error instanceof Error ? error.message : "Failed to save calendar";
-    calendarMessage.className = "message error";
-  } finally {
-    calendarSaveBtn.disabled = false;
-  }
+calendarSelect.addEventListener("change", () => {
+  void saveCalendarSelection();
 });
 
 colorOptions.addEventListener("click", (event) => {
   const button = event.target.closest(".color-option");
   if (!button) return;
-  renderColorOptions(button.dataset.colorId);
+  const colorId = button.dataset.colorId;
+  renderColorOptions(colorId);
+  void saveColorSelection(colorId);
 });
 
-colorSaveBtn.addEventListener("click", async () => {
-  const userId = getUserId();
-  if (!userId) return;
+profileSavePassword.addEventListener("change", () => {
+  profilePasswordWrap.classList.toggle("hidden", !profileSavePassword.checked);
+});
 
-  colorSaveBtn.disabled = true;
-  calendarMessage.textContent = "Saving…";
-  calendarMessage.className = "message";
+profileSaveBtn.addEventListener("click", async () => {
+  if (profileSavePassword.checked && !profilePassword.value && !profileHasSavedPassword) {
+    profileMessage.textContent = "Enter your work password to enable automatic sync.";
+    profileMessage.className = "message error";
+    return;
+  }
+
+  profileSaveBtn.disabled = true;
+  profileMessage.textContent = "Saving…";
+  profileMessage.className = "message";
 
   try {
-    const res = await fetch(`/api/google/${userId}/color`, {
+    const body = {
+      saveEmployeeId: profileSaveEmployeeId.checked,
+      savePassword: profileSavePassword.checked,
+    };
+
+    if (profileSavePassword.checked && profilePassword.value) {
+      body.password = profilePassword.value;
+    }
+
+    const res = await fetch("/api/users/me/profile", {
       method: "PUT",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ colorId: selectedColorId }),
+      body: JSON.stringify(body),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to save color");
+    if (!res.ok) throw new Error(data.error || "Failed to save profile settings");
 
-    calendarMessage.textContent = `Color set to ${data.colorName}`;
-    calendarMessage.className = "message success";
+    profilePassword.value = "";
+    profileMessage.textContent = "Profile settings saved.";
+    profileMessage.className = "message success";
 
-    const user = await fetchUser(userId);
-    renderUser(user);
+    const user = await fetchUser();
+    renderProfileSettings(user);
+    renderOverviewMeta(user);
   } catch (error) {
-    calendarMessage.textContent =
-      error instanceof Error ? error.message : "Failed to save color";
-    calendarMessage.className = "message error";
+    profileMessage.textContent =
+      error instanceof Error ? error.message : "Failed to save profile settings";
+    profileMessage.className = "message error";
   } finally {
-    colorSaveBtn.disabled = false;
+    profileSaveBtn.disabled = false;
   }
 });
 
 syncBtn.addEventListener("click", async () => {
-  const userId = getUserId();
-  if (!userId) return;
-
   syncBtn.disabled = true;
   syncStatus.textContent = "Syncing your schedule…";
   syncStatus.className = "sync-status";
 
   try {
-    const res = await fetch(`/api/sync/${userId}`, { method: "POST" });
+    const res = await fetch("/api/sync", { method: "POST", credentials: "include" });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Sync failed");
 
-    const user = await fetchUser(userId);
+    const user = await fetchUser();
     const calendarName = user.google.calendarName || "your calendar";
     syncStatus.textContent = `Synced to ${calendarName}. ${formatSyncSummary(data.result)}`;
     syncStatus.className = "sync-status success";
@@ -382,21 +453,14 @@ syncBtn.addEventListener("click", async () => {
 });
 
 logoutBtn.addEventListener("click", async () => {
-  const userId = getUserId();
-  if (!userId) {
-    showSetup();
-    return;
-  }
-
   logoutBtn.disabled = true;
 
   try {
-    await fetch(`/api/users/${userId}/logout`, { method: "POST" });
+    await fetch("/api/users/logout", { method: "POST", credentials: "include" });
   } catch {
     // Still sign out locally if the request fails.
   }
 
-  clearUserId();
   showSetup("You have been signed out.");
   logoutBtn.disabled = false;
 });

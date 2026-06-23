@@ -3,8 +3,13 @@
   "buildCommand": "npm run build",
   "functions": {
     "src/server.ts": {
-      "maxDuration": 60,
-      "includeFiles": "node_modules/better-sqlite3/**"
+      "maxDuration": 300
     }
-  }
+  },
+  "crons": [
+    { "path": "/api/cron/thursday-sync", "schedule": "0 17 * * 4" },
+    { "path": "/api/cron/thursday-sync", "schedule": "0 20 * * 4" },
+    { "path": "/api/cron/thursday-sync", "schedule": "0 23 * * 4" },
+    { "path": "/api/cron/thursday-sync", "schedule": "0 2 * * 5" }
+  ]
 }
