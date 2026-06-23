@@ -96,6 +96,39 @@ Manual sync for all users:
 curl -X POST http://localhost:3000/api/sync
 ```
 
+## Production cron (cron-job.org)
+
+Vercel Hobby only allows one cron per day, so Thursday auto-sync uses [cron-job.org](https://cron-job.org/en/) (free, unlimited jobs) to call the app on a schedule.
+
+1. Deploy to Vercel and set `CRON_SECRET` in Vercel env (same value locally).
+2. At [console.cron-job.org](https://console.cron-job.org/), create **four** jobs (same URL, different times):
+
+   - **URL:** `https://YOUR-APP.vercel.app/api/cron/thursday-sync`
+   - **Method:** GET
+   - **Header:** `Authorization: Bearer YOUR_CRON_SECRET`
+
+3. Schedule all four on **Thursday** in **UTC** (≈ noon / 3 / 6 / 9 PM Eastern in standard time):
+
+   | Job | UTC (Thu unless noted) |
+   |-----|-------------------------|
+   | 1 | 17:00 |
+   | 2 | 20:00 |
+   | 3 | 23:00 |
+   | 4 | 02:00 Friday |
+
+   WPS often posts the new week on Thursday; multiple checks stop retrying once the schedule is synced.
+
+4. Test before relying on the schedule:
+
+   ```bash
+   curl -H "Authorization: Bearer YOUR_CRON_SECRET" \
+     https://YOUR-APP.vercel.app/api/cron/thursday-sync
+   ```
+
+**Note:** cron-job.org times out the HTTP request after 30 seconds. Vercel may keep running the sync longer; check Vercel function logs if cron-job.org shows a timeout but sync still matters.
+
+Users must have Google connected, auto-sync enabled, and WPS session (or saved password) in Supabase. Logout clears Google tokens until they sign in again.
+
 ## Architecture
 
 ```
