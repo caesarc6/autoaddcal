@@ -3,7 +3,8 @@
   "buildCommand": "npm run build",
   "functions": {
     "src/server.ts": {
-      "maxDuration": 300
+      "maxDuration": 300,
+      "excludeFiles": "node_modules/{playwright,playwright-core,@playwright}/**"
     }
   }
 }

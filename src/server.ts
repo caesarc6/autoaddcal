@@ -3,7 +3,7 @@ import cookieParser from "cookie-parser";
 import cron from "node-cron";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { config, assertSupabaseConfig } from "./config.js";
+import { config } from "./config.js";
 import { userRouter } from "./routes/users.js";
 import { googleAuthRouter } from "./routes/google-auth.js";
 import { wpsAuthRouter } from "./routes/wps-auth.js";
@@ -12,8 +12,6 @@ import { syncRouter } from "./routes/sync.js";
 import { cronRouter } from "./routes/cron.js";
 import { getUsersReadyToSync } from "./db/index.js";
 import { scheduledThursdaySyncUserSchedule } from "./services/sync-service.js";
-
-assertSupabaseConfig();
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const publicDir = process.env.VERCEL
@@ -34,6 +32,18 @@ app.use("/api/google", googleRouter);
 app.use("/api/cron", cronRouter);
 
 app.get("/health", (_req, res) => {
+  const required = [
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "ENCRYPTION_KEY",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+  ] as const;
+  const missing = required.filter((name) => !process.env[name]);
+  if (missing.length) {
+    res.status(503).json({ ok: false, missing });
+    return;
+  }
   res.json({ ok: true });
 });
 

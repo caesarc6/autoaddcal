@@ -2,7 +2,7 @@ import { Router } from "express";
 import { updateWpsCredentialPrefs, updateWpsSession } from "../db/index.js";
 import { assertEncryptionKey } from "../config.js";
 import { requireAuth } from "../middleware/auth.js";
-import { loginWithCredentials, serializeSession } from "../services/wps-client.js";
+import { serializeSession } from "../services/wps-client.js";
 
 export const wpsAuthRouter = Router();
 
@@ -21,6 +21,7 @@ wpsAuthRouter.post("/login", requireAuth, async (req, res) => {
 
   try {
     assertEncryptionKey();
+    const { loginWithCredentials } = await import("../services/wps-playwright.js");
     const session = await loginWithCredentials(employeeNumber.trim(), password);
     const serialized = serializeSession(session);
 

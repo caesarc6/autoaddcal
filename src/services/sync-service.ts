@@ -1,6 +1,5 @@
 import {
   fetchCalendarMonth,
-  loginWithCredentials,
   serializeSession,
   sessionFromStored,
   validateSession,
@@ -70,6 +69,7 @@ async function refreshWpsSession(user: NonNullable<Awaited<ReturnType<typeof get
   }
 
   console.log(`Re-authenticating WPS session for ${user.id} using saved credentials`);
+  const { loginWithCredentials } = await import("./wps-playwright.js");
   const session = await loginWithCredentials(user.wps_employee_number, user.wps_saved_password);
 
   await updateWpsSession(user.id, {
