@@ -1,4 +1,5 @@
 import type { Cookie, Page } from "playwright";
+import path from "node:path";
 import { config } from "../config.js";
 import type { WpsApiResponse, WpsCalendarData, WpsStaffInfo } from "../types/index.js";
 import {
@@ -436,14 +437,31 @@ async function buildSessionFromPage(
   };
 }
 
+async function launchBrowser() {
+  if (process.env.VERCEL) {
+    const { chromium: pwChromium } = await import("playwright-core");
+    const chromium = (await import("@sparticuz/chromium")).default;
+    const executablePath = await chromium.executablePath();
+    process.env.LD_LIBRARY_PATH = path.dirname(executablePath);
+
+    return pwChromium.launch({
+      args: chromium.args,
+      executablePath,
+      headless: true,
+    });
+  }
+
+  const { chromium } = await import("playwright");
+  return chromium.launch({ headless: true });
+}
+
 export async function loginWithCredentials(
   employeeNumber: string,
   password: string,
 ): Promise<WpsSession> {
-  const { chromium } = await import("playwright");
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchBrowser();
   const context = await browser.newContext({ userAgent: WPS_USER_AGENT });
-  const page = await context.newPage();
+  const page = (await context.newPage()) as Page;
 
   try {
     await page.route("**/account/login", async (route) => {
