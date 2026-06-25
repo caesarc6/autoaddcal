@@ -286,7 +286,11 @@ async function waitForWpsOAuthExchange(
       }
     }
 
-    await page.waitForTimeout(500);
+    try {
+      await page.waitForTimeout(500);
+    } catch {
+      throw new Error("Sign-in interrupted — browser closed during login");
+    }
   }
 
   const bodyText = await page.locator("body").innerText().catch(() => "");
@@ -458,7 +462,10 @@ async function launchBrowser() {
   }
 
   const { chromium } = await import("playwright");
-  return chromium.launch({ headless: true });
+  return chromium.launch({
+    headless: true,
+    args: process.env.CI ? ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"] : [],
+  });
 }
 
 export async function loginWithCredentials(
@@ -468,6 +475,7 @@ export async function loginWithCredentials(
   const browser = await launchBrowser();
   const context = await browser.newContext({ userAgent: WPS_USER_AGENT });
   const page = (await context.newPage()) as Page;
+  let oauthExchange: Promise<void> | undefined;
 
   try {
     await page.route("**/account/login", async (route) => {
@@ -498,12 +506,13 @@ export async function loginWithCredentials(
 
     await page.waitForURL(/sts|adfs/, { timeout: LOGIN_TIMEOUT_MS });
 
-    const oauthExchange = waitForWpsOAuthExchange(page, employeeNumber, password);
+    oauthExchange = waitForWpsOAuthExchange(page, employeeNumber, password);
     await completeAdfsPasswordLogin(page, employeeNumber, password);
     await oauthExchange;
 
     return await buildSessionFromPage(page, employeeNumber);
   } finally {
+    await oauthExchange?.catch(() => undefined);
     await context.close().catch(() => undefined);
     await browser.close().catch(() => undefined);
   }

@@ -8,6 +8,11 @@ import { scheduledThursdaySyncUserSchedule } from "../src/services/sync-service.
 
 assertSupabaseConfig();
 
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled rejection:", reason);
+  process.exitCode = 1;
+});
+
 const users = await getUsersReadyToSync();
 const results: Array<{ userId: string; synced: boolean; reason: string }> = [];
 
