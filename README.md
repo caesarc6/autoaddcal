@@ -127,6 +127,24 @@ Vercel Hobby only allows one cron per day, so Thursday auto-sync uses [cron-job.
 
 **Note:** cron-job.org times out the HTTP request after 30 seconds. Vercel may keep running the sync longer; check Vercel function logs if cron-job.org shows a timeout but sync still matters.
 
+### Recommended: GitHub Actions (hands-off sync with saved password)
+
+Vercel cannot reliably run Playwright for WPS re-login. For **fully automatic** Thursday sync (including saved-password re-login), use the included GitHub Actions workflow instead of (or in addition to) cron-job.org → Vercel.
+
+1. Push this repo to GitHub.
+2. **Settings → Secrets and variables → Actions** — add:
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `ENCRYPTION_KEY`
+   - `GOOGLE_CLIENT_ID`
+   - `GOOGLE_CLIENT_SECRET`
+3. The workflow `.github/workflows/thursday-sync.yml` runs on the same Thursday schedule (UTC).
+4. **Actions → Thursday sync → Run workflow** to test manually.
+
+GitHub Actions runs on a full Linux VM with Playwright — saved password re-login works. The Vercel site stays for the UI; sync runs in GitHub.
+
+You can disable cron-job.org jobs pointing at Vercel once GitHub Actions is verified, or keep them as a fast path when WPS sessions are still valid.
+
 Users must have Google connected, auto-sync enabled, and WPS session (or saved password) in Supabase. Logout clears Google tokens until they sign in again.
 
 ## Architecture

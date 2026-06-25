@@ -84,6 +84,7 @@ function formatSyncSummary(result) {
   if (result.created) parts.push(`${result.created} added`);
   if (result.updated) parts.push(`${result.updated} updated`);
   if (result.deleted) parts.push(`${result.deleted} removed`);
+  if (result.skipped) parts.push(`${result.skipped} work days unchanged`);
   if (!parts.length) return "Calendar is up to date.";
   return parts.join(" · ");
 }

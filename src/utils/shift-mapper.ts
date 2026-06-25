@@ -19,6 +19,10 @@ const SEGMENT_LABELS: Record<string, string> = {
 
 const WORK_CODES = new Set(["D01", "D08", "D10", "D11", "D12"]);
 
+export function isWorkShiftCode(code: string): boolean {
+  return WORK_CODES.has(code);
+}
+
 /**
  * WPS encodes shift times with a sentinel date of 1753-01-01.
  * The day component indicates overnight: 01 = same day, 02 = next day.

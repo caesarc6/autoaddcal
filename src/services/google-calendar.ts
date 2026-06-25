@@ -20,6 +20,7 @@ import {
   GOOGLE_EVENT_COLORS,
   isValidGoogleEventColorId,
 } from "../utils/google-colors.js";
+import { isWorkShiftCode } from "../utils/shift-mapper.js";
 
 export { GOOGLE_EVENT_COLORS, DEFAULT_GOOGLE_EVENT_COLOR_ID };
 
@@ -201,6 +202,11 @@ export async function syncShiftsToGoogle(
 
     try {
       if (existing) {
+        if (isWorkShiftCode(shift.segmentCode)) {
+          result.skipped++;
+          continue;
+        }
+
         await calendar.events.update({
           calendarId,
           eventId: existing.google_event_id,

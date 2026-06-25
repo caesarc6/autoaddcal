@@ -68,6 +68,12 @@ async function refreshWpsSession(user: NonNullable<Awaited<ReturnType<typeof get
     throw new Error("Your session expired. Please sign in again.");
   }
 
+  if (process.env.VERCEL) {
+    throw new Error(
+      "WPS session expired. Sign in at the app to refresh your session — automatic re-login is not available during cron on Vercel yet.",
+    );
+  }
+
   console.log(`Re-authenticating WPS session for ${user.id} using saved credentials`);
   const { loginWithCredentials } = await import("./wps-playwright.js");
   const session = await loginWithCredentials(user.wps_employee_number, user.wps_saved_password);

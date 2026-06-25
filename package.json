@@ -8,7 +8,8 @@
     "start": "node dist/server.js",
     "build": "tsc && npm run build:client",
     "build:client": "npm run build -w client",
-    "sync": "tsx src/cli/sync.ts"
+    "sync": "tsx src/cli/sync.ts",
+    "sync:scheduled": "tsx scripts/thursday-sync.ts"
   },
   "workspaces": [
     "client"

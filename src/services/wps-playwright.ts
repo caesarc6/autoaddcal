@@ -1,5 +1,6 @@
 import type { Cookie, Page } from "playwright";
 import path from "node:path";
+import { tmpdir } from "node:os";
 import { config } from "../config.js";
 import type { WpsApiResponse, WpsCalendarData, WpsStaffInfo } from "../types/index.js";
 import {
@@ -440,9 +441,14 @@ async function buildSessionFromPage(
 async function launchBrowser() {
   if (process.env.VERCEL) {
     const { chromium: pwChromium } = await import("playwright-core");
-    const chromium = (await import("@sparticuz/chromium")).default;
+    const chromiumMod = await import("@sparticuz/chromium");
+    const chromium = chromiumMod.default;
+    const { setupLambdaEnvironment } = chromiumMod;
+
+    chromium.setGraphicsMode = false;
     const executablePath = await chromium.executablePath();
-    process.env.LD_LIBRARY_PATH = path.dirname(executablePath);
+    // Must run after extraction so al2023 libs (libnspr4.so, etc.) are on disk.
+    setupLambdaEnvironment(path.join(tmpdir(), "al2023", "lib"));
 
     return pwChromium.launch({
       args: chromium.args,
