@@ -89,17 +89,23 @@ async function completeAdfsPasswordLogin(
   password: string,
 ): Promise<void> {
   const userAccount = page.getByRole("textbox", { name: "User Account" });
-  const nextBtn = page.getByRole("button", { name: "Next" });
-  const passwordOption = page.getByRole("button", { name: "Password", exact: true });
   const passwordInput = page.getByRole("textbox", { name: "Password" });
   const signInBtn = page.getByRole("button", { name: "Sign in" });
 
   await userAccount.waitFor({ state: "visible", timeout: LOGIN_TIMEOUT_MS });
   await userAccount.fill(employeeNumber);
-  await nextBtn.click();
 
-  await passwordOption.waitFor({ state: "visible", timeout: LOGIN_TIMEOUT_MS });
-  await passwordOption.click();
+  // Current ADFS shows User Account + Password + Sign in on one page.
+  // Older flows required Next, then choosing the Password auth method.
+  const passwordAlreadyVisible = await passwordInput.isVisible().catch(() => false);
+  if (!passwordAlreadyVisible) {
+    const nextBtn = page.getByRole("button", { name: "Next" });
+    await nextBtn.click({ timeout: LOGIN_TIMEOUT_MS });
+
+    const passwordOption = page.getByRole("button", { name: "Password", exact: true });
+    await passwordOption.waitFor({ state: "visible", timeout: LOGIN_TIMEOUT_MS });
+    await passwordOption.click();
+  }
 
   await passwordInput.waitFor({ state: "visible", timeout: LOGIN_TIMEOUT_MS });
   await passwordInput.fill(password);
@@ -129,6 +135,13 @@ function adfsLoginFailureMessage(bodyText: string): string | null {
   }
   if (text.includes("sign in using a certificate") && text.includes("authentication options")) {
     return null;
+  }
+  if (text.includes("msis7012") || text.includes("microsoft office 365 identity platform")) {
+    return (
+      "Corporate sign-in failed while connecting to Office 365 (MSIS7012). " +
+      "This is a Fast Retailing IT/ADFS issue — try your corporate email instead of employee ID, " +
+      "sign in at wps.fastretailing.com in a private window, or contact IT if WPS login fails there too."
+    );
   }
 
   return null;
