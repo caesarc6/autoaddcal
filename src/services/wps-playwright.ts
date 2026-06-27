@@ -147,26 +147,60 @@ function adfsLoginFailureMessage(bodyText: string): string | null {
   return null;
 }
 
-async function dismissAdfsPrompts(page: Page): Promise<boolean> {
+type AdfsPromptResult = "none" | "dismissed" | "trust-device-continued";
+
+async function isAdfsLoginFormVisible(page: Page): Promise<boolean> {
+  const userAccount = page.getByRole("textbox", { name: "User Account" });
+  return userAccount.isVisible().catch(() => false);
+}
+
+async function clickTrustDeviceContinue(page: Page): Promise<boolean> {
+  const bodyText = await page.locator("body").innerText().catch(() => "");
+  if (!/trust this device|register this device|recognized device/i.test(bodyText)) {
+    return false;
+  }
+
+  const continueBtn = page.getByRole("button", { name: /^Continue$/i });
+  if (await continueBtn.isVisible().catch(() => false)) {
+    await continueBtn.click();
+    return true;
+  }
+
+  const continueSubmit = page.locator(
+    'input[type="submit"][value="Continue"], input[type="button"][value="Continue"]',
+  );
+  if (await continueSubmit.first().isVisible().catch(() => false)) {
+    await continueSubmit.first().click();
+    return true;
+  }
+
+  return false;
+}
+
+async function handleAdfsPrompts(page: Page): Promise<AdfsPromptResult> {
+  if (await clickTrustDeviceContinue(page)) {
+    return "trust-device-continued";
+  }
+
   const staySignedInYes = page.locator("#idSIButton9");
   if (await staySignedInYes.isVisible().catch(() => false)) {
     await staySignedInYes.click();
-    return true;
+    return "dismissed";
   }
 
   const staySignedInNo = page.locator("#idBtn_Back");
   if (await staySignedInNo.isVisible().catch(() => false)) {
     await staySignedInNo.click();
-    return true;
+    return "dismissed";
   }
 
   const kmsiSubmit = page.locator('input[type="submit"][value="Yes"], input[type="submit"][value="No"]');
   if (await kmsiSubmit.first().isVisible().catch(() => false)) {
     await kmsiSubmit.first().click();
-    return true;
+    return "dismissed";
   }
 
-  return false;
+  return "none";
 }
 
 async function submitWpsNativeLoginForm(
@@ -251,12 +285,19 @@ async function waitForTimeline(page: Page): Promise<void> {
   });
 }
 
+interface AdfsLoginState {
+  initialComplete: boolean;
+}
+
 async function waitForWpsOAuthExchange(
   page: Page,
   employeeNumber: string,
   password: string,
+  loginState: AdfsLoginState,
 ): Promise<void> {
   const deadline = Date.now() + LOGIN_TIMEOUT_MS;
+  let extraLogins = 0;
+  const maxExtraLogins = 2;
 
   while (Date.now() < deadline) {
     const url = page.url();
@@ -294,7 +335,32 @@ async function waitForWpsOAuthExchange(
         throw new Error(failure);
       }
 
-      if (await dismissAdfsPrompts(page)) {
+      const promptResult = await handleAdfsPrompts(page);
+      if (promptResult === "trust-device-continued") {
+        const userAccount = page.getByRole("textbox", { name: "User Account" });
+        await userAccount.waitFor({ state: "visible", timeout: 15_000 }).catch(() => undefined);
+        if (extraLogins < maxExtraLogins && (await isAdfsLoginFormVisible(page))) {
+          await completeAdfsPasswordLogin(page, employeeNumber, password);
+          extraLogins += 1;
+        }
+        continue;
+      }
+      if (promptResult === "dismissed") {
+        continue;
+      }
+
+      const passwordInput = page.getByRole("textbox", { name: "Password" });
+      const passwordVisible = await passwordInput.isVisible().catch(() => false);
+      const passwordFilled =
+        passwordVisible && (await passwordInput.inputValue().catch(() => "")).length > 0;
+      if (
+        loginState.initialComplete &&
+        extraLogins < maxExtraLogins &&
+        (await isAdfsLoginFormVisible(page)) &&
+        !passwordFilled
+      ) {
+        await completeAdfsPasswordLogin(page, employeeNumber, password);
+        extraLogins += 1;
         continue;
       }
     }
@@ -519,8 +585,10 @@ export async function loginWithCredentials(
 
     await page.waitForURL(/sts|adfs/, { timeout: LOGIN_TIMEOUT_MS });
 
-    oauthExchange = waitForWpsOAuthExchange(page, employeeNumber, password);
+    const loginState: AdfsLoginState = { initialComplete: false };
+    oauthExchange = waitForWpsOAuthExchange(page, employeeNumber, password, loginState);
     await completeAdfsPasswordLogin(page, employeeNumber, password);
+    loginState.initialComplete = true;
     await oauthExchange;
 
     return await buildSessionFromPage(page, employeeNumber);
